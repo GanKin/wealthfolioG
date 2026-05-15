@@ -11,7 +11,11 @@ import { parseOccSymbol } from "@/lib/occ-symbol";
 import type { ActivityDetails } from "@/lib/types";
 import { BuyForm, type BuyFormValues } from "../components/forms/buy-form";
 import { SellForm, type SellFormValues } from "../components/forms/sell-form";
-import { DepositForm, type DepositFormValues } from "../components/forms/deposit-form";
+import {
+  DepositForm,
+  type DepositFormValues,
+  DEPOSIT_TYPES,
+} from "../components/forms/deposit-form";
 import { WithdrawalForm, type WithdrawalFormValues } from "../components/forms/withdrawal-form";
 import { DividendForm, type DividendFormValues } from "../components/forms/dividend-form";
 import { TransferForm, type TransferFormValues } from "../components/forms/transfer-form";
@@ -278,15 +282,33 @@ export const ACTIVITY_FORM_CONFIG: Record<
   DEPOSIT: {
     component: DepositForm as ComponentType<ActivityFormComponentProps<ActivityFormValues>>,
     activityType: ActivityType.DEPOSIT,
-    getDefaults: (activity, accounts) => ({
-      ...getBaseDefaults(activity, accounts),
-      amount: absNum(activity?.amount),
-      // Advanced options
-      currency: activity?.currency,
-      fxRate: activity?.fxRate ?? undefined,
-    }),
+    getDefaults: (activity, accounts) => {
+      const meta = activity?.metadata as Record<string, unknown> | undefined;
+      const depositMeta = meta?.term_deposit as Record<string, string> | undefined;
+      const isFixed = depositMeta != null;
+      return {
+        ...getBaseDefaults(activity, accounts),
+        amount: absNum(activity?.amount),
+        // Advanced options
+        currency: activity?.currency,
+        fxRate: activity?.fxRate ?? undefined,
+        // Deposit type
+        depositType: isFixed ? DEPOSIT_TYPES.FIXED : DEPOSIT_TYPES.DEMAND,
+        // Fixed-term fields from metadata
+        interestStartDate: depositMeta?.interest_start_date
+          ? new Date(depositMeta.interest_start_date)
+          : null,
+        maturityDate: depositMeta?.maturity_date
+          ? new Date(depositMeta.maturity_date)
+          : null,
+        interestRate: depositMeta?.interest_rate
+          ? parseFloat(depositMeta.interest_rate as string)
+          : null,
+      };
+    },
     toPayload: (data) => {
       const d = data as DepositFormValues;
+      const isFixed = d.depositType === DEPOSIT_TYPES.FIXED;
       return {
         accountId: d.accountId,
         activityDate: d.activityDate,
@@ -294,6 +316,16 @@ export const ACTIVITY_FORM_CONFIG: Record<
         comment: d.comment,
         currency: d.currency,
         fxRate: d.fxRate,
+        // Store fixed-term info in metadata
+        ...(isFixed && {
+          metadata: {
+            term_deposit: {
+              interest_start_date: d.interestStartDate?.toISOString().split("T")[0] ?? "",
+              maturity_date: d.maturityDate?.toISOString().split("T")[0] ?? "",
+              interest_rate: String(d.interestRate ?? ""),
+            },
+          },
+        }),
       };
     },
   },

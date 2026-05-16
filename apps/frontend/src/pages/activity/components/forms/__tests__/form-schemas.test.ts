@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { buyFormSchema } from "../buy-form";
 import { sellFormSchema } from "../sell-form";
 import { depositFormSchema } from "../deposit-form";
@@ -29,6 +29,24 @@ describe("Form Schemas Validation", () => {
 
       const result = buyFormSchema.safeParse(validData);
       expect(result.success).toBe(true);
+    });
+
+    it("requires a maturity date for WMP buys", () => {
+      const invalidData = {
+        accountId: "acc-123",
+        assetId: "WMP-001",
+        assetType: "wmp",
+        activityDate: new Date(),
+        quantity: 10,
+        unitPrice: 100,
+        currency: "USD",
+      };
+
+      const result = buyFormSchema.safeParse(invalidData);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues.some((issue) => issue.path[0] === "maturityDate")).toBe(true);
+      }
     });
 
     it("fails when accountId is empty", () => {
@@ -161,6 +179,24 @@ describe("Form Schemas Validation", () => {
 
       const result = sellFormSchema.safeParse(validData);
       expect(result.success).toBe(true);
+    });
+
+    it("requires a maturity date for WMP sells", () => {
+      const invalidData = {
+        accountId: "acc-123",
+        assetId: "WMP-001",
+        assetType: "wmp",
+        activityDate: new Date(),
+        quantity: 10,
+        unitPrice: 100,
+        currency: "USD",
+      };
+
+      const result = sellFormSchema.safeParse(invalidData);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues.some((issue) => issue.path[0] === "maturityDate")).toBe(true);
+      }
     });
 
     it("fails when required fields are missing", () => {
@@ -900,6 +936,61 @@ describe("Form Schemas Validation", () => {
 
       const payload = ACTIVITY_FORM_CONFIG.TRANSFER.toPayload(formData as any) as any;
       expect(payload.unitPrice).toBeUndefined();
+    });
+  });
+
+  describe("deposit toPayload", () => {
+    it("emits demand subtype and clears fixed-term metadata", () => {
+      const payload = ACTIVITY_FORM_CONFIG.DEPOSIT.toPayload({
+        accountId: "acc-123",
+        activityDate: new Date(),
+        amount: 1000,
+        comment: null,
+        depositType: "demand",
+        interestStartDate: null,
+        maturityDate: null,
+        interestRate: null,
+        currency: "USD",
+      } as any);
+
+      expect(payload).toMatchObject({
+        subtype: ACTIVITY_SUBTYPES.DEMAND,
+        quantity: 1,
+        unitPrice: 1000,
+        metadata: {},
+      });
+    });
+
+    it("emits fixed-term subtype and term deposit metadata", () => {
+      const interestStartDate = new Date("2026-01-01T00:00:00.000Z");
+      const maturityDate = new Date("2029-01-01T00:00:00.000Z");
+      vi.spyOn(interestStartDate, "toISOString").mockReturnValue("2025-12-31T16:00:00.000Z");
+      vi.spyOn(maturityDate, "toISOString").mockReturnValue("2028-12-31T16:00:00.000Z");
+
+      const payload = ACTIVITY_FORM_CONFIG.DEPOSIT.toPayload({
+        accountId: "acc-123",
+        activityDate: new Date(),
+        amount: 1000,
+        comment: null,
+        depositType: "fixed",
+        interestStartDate,
+        maturityDate,
+        interestRate: 1.3,
+        currency: "USD",
+      } as any);
+
+      expect(payload).toMatchObject({
+        subtype: ACTIVITY_SUBTYPES.FIXED_TERM,
+        quantity: 1,
+        unitPrice: 1000,
+        metadata: {
+          term_deposit: {
+            interest_start_date: "2026-01-01",
+            maturity_date: "2029-01-01",
+            interest_rate: "1.3",
+          },
+        },
+      });
     });
   });
 

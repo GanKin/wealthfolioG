@@ -316,6 +316,10 @@ export const ACTIVITY_SUBTYPES = {
   // INTEREST subtypes - STAKING_REWARD expands to INTEREST + BUY
   STAKING_REWARD: "STAKING_REWARD",
 
+  // DEPOSIT subtypes
+  DEMAND: "DEMAND",
+  FIXED_TERM: "FIXED_TERM",
+
   // CREDIT subtypes
   // BONUS: external flow (new capital, affects TWR/net_contribution)
   BONUS: "BONUS",
@@ -336,6 +340,8 @@ export const SUBTYPE_DISPLAY_NAMES: Record<string, string> = {
   [ACTIVITY_SUBTYPES.DRIP]: "Dividend Reinvested (DRIP)",
   [ACTIVITY_SUBTYPES.DIVIDEND_IN_KIND]: "Dividend in Kind",
   [ACTIVITY_SUBTYPES.STAKING_REWARD]: "Staking Reward",
+  [ACTIVITY_SUBTYPES.DEMAND]: "Demand",
+  [ACTIVITY_SUBTYPES.FIXED_TERM]: "Fixed-Term",
   [ACTIVITY_SUBTYPES.BONUS]: "Bonus",
   [ACTIVITY_SUBTYPES.REBATE]: "Trading Rebate",
   [ACTIVITY_SUBTYPES.REFUND]: "Fee Refund",
@@ -346,6 +352,7 @@ export const SUBTYPE_DISPLAY_NAMES: Record<string, string> = {
 export const SUBTYPES_BY_ACTIVITY_TYPE: Record<string, string[]> = {
   [ActivityType.DIVIDEND]: [ACTIVITY_SUBTYPES.DRIP, ACTIVITY_SUBTYPES.DIVIDEND_IN_KIND],
   [ActivityType.INTEREST]: [ACTIVITY_SUBTYPES.STAKING_REWARD],
+  [ActivityType.DEPOSIT]: [ACTIVITY_SUBTYPES.DEMAND, ACTIVITY_SUBTYPES.FIXED_TERM],
   [ActivityType.CREDIT]: [
     ACTIVITY_SUBTYPES.BONUS,
     ACTIVITY_SUBTYPES.REBATE,
@@ -452,6 +459,7 @@ export const InstrumentType = {
   OPTION: "OPTION",
   METAL: "METAL",
   BOND: "BOND",
+  WMP: "WMP",
 } as const;
 
 export type InstrumentType = (typeof InstrumentType)[keyof typeof InstrumentType];
@@ -464,6 +472,7 @@ export const INSTRUMENT_TYPE_OPTIONS = [
   { value: InstrumentType.OPTION, label: "Option" },
   { value: InstrumentType.METAL, label: "Metal" },
   { value: InstrumentType.BOND, label: "Bond" },
+  { value: InstrumentType.WMP, label: "WMP" },
 ] as const;
 
 /**

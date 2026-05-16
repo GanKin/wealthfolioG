@@ -226,6 +226,8 @@ mod tests {
             InstrumentType::Fx,
             InstrumentType::Option,
             InstrumentType::Metal,
+            InstrumentType::Bond,
+            InstrumentType::Wmp,
         ] {
             let db_str = inst_type.as_db_str();
             let parsed = InstrumentType::from_db_str(db_str).unwrap();
@@ -246,6 +248,14 @@ mod tests {
         assert_eq!(
             InstrumentType::from_external_str("FOREX"),
             Some(InstrumentType::Fx)
+        );
+        assert_eq!(
+            InstrumentType::from_external_str("WMP"),
+            Some(InstrumentType::Wmp)
+        );
+        assert_eq!(
+            InstrumentType::from_external_str("WEALTH_MANAGEMENT_PRODUCT"),
+            Some(InstrumentType::Wmp)
         );
     }
 
@@ -481,6 +491,24 @@ mod tests {
         match id {
             crate::assets::InstrumentId::Bond { ref isin } => {
                 assert_eq!(isin.as_ref(), "US912797NQ65");
+            }
+            _ => panic!("expected InstrumentId::Bond"),
+        }
+    }
+
+    #[test]
+    fn test_wmp_to_instrument_id_falls_back_to_symbol() {
+        let asset = Asset {
+            instrument_type: Some(InstrumentType::Wmp),
+            instrument_symbol: Some("WMP-001".to_string()),
+            metadata: Some(json!({ "bond": {} })),
+            ..create_test_asset(AssetKind::Investment)
+        };
+
+        let id = asset.to_instrument_id().unwrap();
+        match id {
+            crate::assets::InstrumentId::Bond { ref isin } => {
+                assert_eq!(isin.as_ref(), "WMP-001");
             }
             _ => panic!("expected InstrumentId::Bond"),
         }

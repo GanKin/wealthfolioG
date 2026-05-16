@@ -65,6 +65,10 @@ export const ACTIVITY_SUBTYPES = {
   LENDING_INTEREST: 'LENDING_INTEREST',
   COUPON: 'COUPON',
 
+  // Deposit subtypes
+  DEMAND: 'DEMAND',
+  FIXED_TERM: 'FIXED_TERM',
+
   // Split subtypes
   REVERSE_SPLIT: 'REVERSE_SPLIT',
 

@@ -119,6 +119,7 @@ const EDIT_INSTRUMENT_TYPE_OPTIONS = [
   { value: "EQUITY", label: "Equity (Stock, ETF, Fund)" },
   { value: "CRYPTO", label: "Cryptocurrency" },
   { value: "BOND", label: "Bond" },
+  { value: "WMP", label: "WMP" },
   { value: "OPTION", label: "Option" },
   { value: "METAL", label: "Metal (Commodity)" },
 ] as const;

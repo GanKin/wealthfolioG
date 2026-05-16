@@ -107,6 +107,7 @@ fn instrument_type_from_search_result(quote_type: &str) -> Option<InstrumentType
         "OPTION" => Some(InstrumentType::Option),
         "COMMODITY" => Some(InstrumentType::Metal),
         "BOND" | "MONEYMARKET" => Some(InstrumentType::Bond),
+        "WMP" | "WEALTH_MANAGEMENT_PRODUCT" => Some(InstrumentType::Wmp),
         _ => None,
     }
 }
@@ -766,6 +767,7 @@ where
             Some(InstrumentType::Metal) => "COMMODITY",
             Some(InstrumentType::Option) => "OPTION",
             Some(InstrumentType::Bond) => "BOND",
+            Some(InstrumentType::Wmp) => "WMP",
             Some(InstrumentType::Fx) => "FOREX",
             None => "OTHER",
         };
@@ -1373,7 +1375,10 @@ where
         for attempt_symbol in symbol_resolution_candidates(clean_symbol) {
             // For bonds, populate metadata with TreasuryDirect details so
             // US_TREASURY_CALC can price them during resolve.
-            let bond_metadata = if instrument_type == Some(&InstrumentType::Bond) {
+            let bond_metadata = if matches!(
+                instrument_type,
+                Some(InstrumentType::Bond) | Some(InstrumentType::Wmp)
+            ) {
                 let upper = attempt_symbol.to_uppercase();
                 // Convert CUSIP to ISIN if needed
                 let isin = if crate::utils::cusip::looks_like_cusip(&upper) {

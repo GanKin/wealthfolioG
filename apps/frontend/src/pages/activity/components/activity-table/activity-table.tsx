@@ -32,6 +32,7 @@ import {
 import { ActivityType, getExchangeDisplayName } from "@/lib/constants";
 import { ActivityDetails } from "@/lib/types";
 import { formatDateTime } from "@/lib/utils";
+import { formatDepositTermRange, getDepositTermDetails } from "../../utils/deposit-utils";
 import { useSettingsContext } from "@/lib/settings-provider";
 import {
   type OnChangeFn,
@@ -102,6 +103,46 @@ export const ActivityTable = ({
     );
   }, [activities]);
 
+  const getTradeInstrumentType = React.useCallback((activity: ActivityDetails) => {
+    const metadata = activity.metadata;
+    if (metadata && typeof metadata === "object") {
+      const tradeInstrumentType = (metadata as Record<string, unknown>).tradeInstrumentType;
+      if (typeof tradeInstrumentType === "string" && tradeInstrumentType.trim()) {
+        return tradeInstrumentType.trim().toUpperCase();
+      }
+    }
+
+    return activity.instrumentType?.trim().toUpperCase();
+  }, []);
+
+  const getTradeInstrumentTypeLabel = React.useCallback((instrumentType?: string | null) => {
+    switch (instrumentType?.trim().toUpperCase()) {
+      case "OPTION":
+        return "Option";
+      case "BOND":
+        return "Bond";
+      case "WMP":
+        return "WMP";
+      case "CRYPTO":
+        return "Crypto";
+      case "FX":
+        return "FX";
+      case "METAL":
+        return "Metal";
+      case "EQUITY":
+      case "STOCK":
+      case "ETF":
+      case "MUTUALFUND":
+      case "MUTUAL_FUND":
+      case "INDEX":
+      case "FUTURE":
+      case "FUTURES":
+        return "Stock";
+      default:
+        return undefined;
+    }
+  }, []);
+
   const columns: ColumnDef<ActivityDetails>[] = React.useMemo(
     () => [
       {
@@ -111,13 +152,21 @@ export const ActivityTable = ({
         header: ({ column }) => <DataTableColumnHeader column={column} title="Type" />,
         cell: ({ row }) => {
           const activityType = row.getValue("activityType");
+          const tradeTypeLabel =
+            activityType === ActivityType.BUY || activityType === ActivityType.SELL
+              ? getTradeInstrumentTypeLabel(getTradeInstrumentType(row.original))
+              : undefined;
+          const depositTermRange = formatDepositTermRange(getDepositTermDetails(row.original));
           return (
-            <div className="flex items-center text-sm">
+            <div className="flex flex-col text-sm">
               <ActivityTypeBadge
                 type={activityType as ActivityType}
-                subtype={row.original.subtype}
+                subtype={tradeTypeLabel ?? row.original.subtype}
                 className="whitespace-nowrap text-xs font-normal"
               />
+              {depositTermRange && (
+                <span className="text-muted-foreground mt-1 text-xs">{depositTermRange}</span>
+              )}
             </div>
           );
         },
@@ -227,7 +276,7 @@ export const ActivityTable = ({
         },
         header: ({ column }) => (
           <DataTableColumnHeader
-            className="justify-end text-right"
+            className="justify-end pr-4 text-right"
             column={column}
             title="Quantity"
           />
@@ -235,6 +284,7 @@ export const ActivityTable = ({
         cell: ({ row }) => {
           const activityType = String(row.getValue("activityType"));
           const quantity = row.getValue("quantity");
+          const isDeposit = activityType === ActivityType.DEPOSIT;
           const assetSymbol = String(row.getValue("assetSymbol"));
           const isAssetBackedIncome = isAssetBackedIncomeActivity(
             activityType,
@@ -247,6 +297,9 @@ export const ActivityTable = ({
             ? isCashTransfer(activityType, assetSymbol, row.original.assetId)
             : isCashActivity(activityType) && !isAssetBackedIncome;
 
+          if (isDeposit) {
+            return <div className="pr-4 text-right">1</div>;
+          }
           if (
             isCash ||
             (isIncomeActivity(activityType) && !isAssetBackedIncome) ||
@@ -281,7 +334,7 @@ export const ActivityTable = ({
         },
         header: ({ column }) => (
           <DataTableColumnHeader
-            className="justify-end text-right"
+            className="justify-end pr-4 text-right"
             column={column}
             title="Price/Amount"
           />
@@ -330,7 +383,11 @@ export const ActivityTable = ({
           label: "Fee",
         },
         header: ({ column }) => (
-          <DataTableColumnHeader className="justify-end text-right" column={column} title="Fee" />
+          <DataTableColumnHeader
+            className="justify-end pr-4 text-right"
+            column={column}
+            title="Fee"
+          />
         ),
         cell: ({ row }) => {
           const activityType = String(row.getValue("activityType"));
@@ -357,7 +414,11 @@ export const ActivityTable = ({
           label: "Total",
         },
         header: ({ column }) => (
-          <DataTableColumnHeader className="justify-end text-right" column={column} title="Total" />
+          <DataTableColumnHeader
+            className="justify-end pr-4 text-right"
+            column={column}
+            title="Total"
+          />
         ),
         cell: ({ row }) => {
           const activity = row.original;

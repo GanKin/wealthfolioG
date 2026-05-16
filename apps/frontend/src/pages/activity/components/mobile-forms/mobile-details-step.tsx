@@ -117,12 +117,14 @@ export function MobileDetailsStep({ accounts, activityType, isEditing }: MobileD
   const assetCurrency = watch("currency");
   const [accountSheetOpen, setAccountSheetOpen] = useState(false);
 
-  // BUY/SELL asset type (stock/option/bond)
+  // BUY/SELL asset type (stock/option/bond/wmp)
   const isBuyOrSell = TRADE_ACTIVITY_TYPES.includes(activityType);
   const assetType = isBuyOrSell ? ((watch("assetType" as any) as string) ?? "stock") : "stock";
   const isOption = assetType === "option";
   const isBond = assetType === "bond";
-  const isManualForType = isManualAsset && !isBond;
+  const isWmp = assetType === "wmp";
+  const isBondLike = isBond || isWmp;
+  const isManualForType = isManualAsset && !isBondLike;
 
   // Option fields for total calculation
   const optQuantity = isBuyOrSell ? watch("quantity") : undefined;
@@ -252,6 +254,9 @@ export function MobileDetailsStep({ accounts, activityType, isEditing }: MobileD
     } else if (value === "bond") {
       setValue("quoteMode" as any, QuoteMode.MANUAL);
       setValue("assetKind" as any, "BOND");
+    } else if (value === "wmp") {
+      setValue("quoteMode" as any, QuoteMode.MANUAL);
+      setValue("assetKind" as any, "WMP");
     } else {
       setValue("quoteMode" as any, QuoteMode.MARKET);
       setValue("assetKind" as any, undefined);
@@ -262,6 +267,7 @@ export function MobileDetailsStep({ accounts, activityType, isEditing }: MobileD
     setValue("symbolQuoteCcy" as any, undefined);
     setValue("symbolInstrumentType" as any, undefined);
     setValue("assetMetadata" as any, undefined);
+    setValue("maturityDate" as any, null);
   };
 
   // Filter destination accounts to exclude source account (for internal transfers)
@@ -317,7 +323,9 @@ export function MobileDetailsStep({ accounts, activityType, isEditing }: MobileD
     ? "Received quantity"
     : isOption
       ? "Contracts"
-      : isBond
+      : isWmp
+        ? "Units"
+        : isBond
         ? "Bonds"
         : "Shares";
   const priceLabel = isAssetBackedIncome
@@ -565,6 +573,27 @@ export function MobileDetailsStep({ accounts, activityType, isEditing }: MobileD
                 defaultCurrency={accountCurrency}
               />
             ))}
+
+          {isWmp && (
+            <FormField
+              control={control}
+              name="maturityDate"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-base font-medium">Maturity Date</FormLabel>
+                  <FormControl>
+                    <DatePickerInput
+                      onChange={(date: Date | undefined) => field.onChange(date ?? null)}
+                      value={field.value ?? undefined}
+                      disabled={field.disabled}
+                      enableTime={false}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
 
           {/* Quantity and Unit Price */}
           {needsQuantity && (

@@ -9,6 +9,7 @@ import {
 import { isSecuritiesTransfer } from "@/lib/activity-utils";
 import { parseOccSymbol } from "@/lib/occ-symbol";
 import type { ActivityDetails } from "@/lib/types";
+import { formatDateISO } from "@/lib/utils";
 import { BuyForm, type BuyFormValues } from "../components/forms/buy-form";
 import { SellForm, type SellFormValues } from "../components/forms/sell-form";
 import {
@@ -25,6 +26,7 @@ import { InterestForm, type InterestFormValues } from "../components/forms/inter
 import { TaxForm, type TaxFormValues } from "../components/forms/tax-form";
 import type { AccountSelectOption } from "../components/forms/fields";
 import type { NewActivityFormValues } from "../components/forms/schemas";
+import { getDepositTermDetails } from "../utils/deposit-utils";
 
 // Picker activity types (TRANSFER_IN/OUT merged into TRANSFER)
 export type PickerActivityType =
@@ -92,6 +94,33 @@ function getBaseDefaults(
   };
 }
 
+function getBondLikeMaturityDate(activity: Partial<ActivityDetails> | undefined): Date | null {
+  const metadata = activity?.metadata;
+  if (!metadata || typeof metadata !== "object") return null;
+  const record = metadata as Record<string, unknown>;
+  const bond = record.bond as Record<string, unknown> | undefined;
+  const wmp = record.wmp as Record<string, unknown> | undefined;
+  const raw =
+    bond?.maturityDate ?? bond?.maturity_date ?? wmp?.maturityDate ?? wmp?.maturity_date;
+  if (typeof raw !== "string" || !raw.trim()) return null;
+  const parsed = new Date(`${raw.trim()}T12:00:00`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function getTradeInstrumentType(activity: Partial<ActivityDetails> | undefined): string | undefined {
+  if (!activity?.metadata || typeof activity.metadata !== "object") {
+    return activity?.instrumentType?.trim().toUpperCase();
+  }
+
+  const record = activity.metadata as Record<string, unknown>;
+  const metadataTradeType = record.tradeInstrumentType;
+  if (typeof metadataTradeType === "string" && metadataTradeType.trim()) {
+    return metadataTradeType.trim().toUpperCase();
+  }
+
+  return activity.instrumentType?.trim().toUpperCase();
+}
+
 function selectedExistingAsset(
   assetSymbol: string | null | undefined,
   existingAssetId: string | null | undefined,
@@ -129,7 +158,9 @@ export const ACTIVITY_FORM_CONFIG: Record<
       };
 
       // Populate option-specific fields from OCC symbol when editing
-      if (activity?.instrumentType === InstrumentType.OPTION) {
+      const tradeInstrumentType = getTradeInstrumentType(activity);
+
+      if (tradeInstrumentType === InstrumentType.OPTION) {
         const parsed = parseOccSymbol(activity.assetSymbol ?? "");
         return {
           ...base,
@@ -146,7 +177,7 @@ export const ACTIVITY_FORM_CONFIG: Record<
       }
 
       // Populate bond-specific fields when editing
-      if (activity?.instrumentType === InstrumentType.BOND) {
+      if (tradeInstrumentType === InstrumentType.BOND) {
         return {
           ...base,
           assetType: "bond" as const,
@@ -156,10 +187,34 @@ export const ACTIVITY_FORM_CONFIG: Record<
         };
       }
 
+      if (tradeInstrumentType === InstrumentType.WMP) {
+        return {
+          ...base,
+          assetType: "wmp" as const,
+          assetKind: InstrumentType.WMP,
+          symbolInstrumentType: InstrumentType.WMP,
+          symbolQuoteCcy: activity?.currency ?? undefined,
+          maturityDate: getBondLikeMaturityDate(activity),
+        };
+      }
+
       return base;
     },
     toPayload: (data) => {
       const d = data as BuyFormValues;
+      const metadata: Record<string, unknown> = {};
+      if (d.symbolInstrumentType?.trim()) {
+        metadata.tradeInstrumentType = d.symbolInstrumentType.trim().toUpperCase();
+      }
+      if (d.symbolInstrumentType === InstrumentType.OPTION && d.contractMultiplier != null && d.contractMultiplier !== 100) {
+        metadata[METADATA_CONTRACT_MULTIPLIER] = d.contractMultiplier;
+      }
+      if (d.assetType === "wmp" && d.maturityDate) {
+        metadata.bond = {
+          maturityDate: formatDateISO(d.maturityDate),
+        };
+      }
+
       return {
         accountId: d.accountId,
         activityDate: d.activityDate,
@@ -183,13 +238,9 @@ export const ACTIVITY_FORM_CONFIG: Record<
               exchangeMic: d.assetMetadata.exchangeMic ?? undefined,
               providerId: d.assetMetadata.providerId ?? undefined,
               providerSymbol: d.assetMetadata.providerSymbol ?? undefined,
-            }
+          }
           : undefined,
-        ...(d.symbolInstrumentType === InstrumentType.OPTION &&
-          d.contractMultiplier != null &&
-          d.contractMultiplier !== 100 && {
-            metadata: { [METADATA_CONTRACT_MULTIPLIER]: d.contractMultiplier },
-          }),
+        ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
       };
     },
   },
@@ -214,7 +265,9 @@ export const ACTIVITY_FORM_CONFIG: Record<
       };
 
       // Populate option-specific fields from OCC symbol when editing
-      if (activity?.instrumentType === InstrumentType.OPTION) {
+      const tradeInstrumentType = getTradeInstrumentType(activity);
+
+      if (tradeInstrumentType === InstrumentType.OPTION) {
         const parsed = parseOccSymbol(activity.assetSymbol ?? "");
         return {
           ...base,
@@ -231,7 +284,7 @@ export const ACTIVITY_FORM_CONFIG: Record<
       }
 
       // Populate bond-specific fields when editing
-      if (activity?.instrumentType === InstrumentType.BOND) {
+      if (tradeInstrumentType === InstrumentType.BOND) {
         return {
           ...base,
           assetType: "bond" as const,
@@ -241,10 +294,34 @@ export const ACTIVITY_FORM_CONFIG: Record<
         };
       }
 
+      if (tradeInstrumentType === InstrumentType.WMP) {
+        return {
+          ...base,
+          assetType: "wmp" as const,
+          assetKind: InstrumentType.WMP,
+          symbolInstrumentType: InstrumentType.WMP,
+          symbolQuoteCcy: activity?.currency ?? undefined,
+          maturityDate: getBondLikeMaturityDate(activity),
+        };
+      }
+
       return base;
     },
     toPayload: (data) => {
       const d = data as SellFormValues;
+      const metadata: Record<string, unknown> = {};
+      if (d.symbolInstrumentType?.trim()) {
+        metadata.tradeInstrumentType = d.symbolInstrumentType.trim().toUpperCase();
+      }
+      if (d.symbolInstrumentType === InstrumentType.OPTION && d.contractMultiplier != null && d.contractMultiplier !== 100) {
+        metadata[METADATA_CONTRACT_MULTIPLIER] = d.contractMultiplier;
+      }
+      if (d.assetType === "wmp" && d.maturityDate) {
+        metadata.bond = {
+          maturityDate: formatDateISO(d.maturityDate),
+        };
+      }
+
       return {
         accountId: d.accountId,
         activityDate: d.activityDate,
@@ -270,11 +347,7 @@ export const ACTIVITY_FORM_CONFIG: Record<
               providerSymbol: d.assetMetadata.providerSymbol ?? undefined,
             }
           : undefined,
-        ...(d.symbolInstrumentType === InstrumentType.OPTION &&
-          d.contractMultiplier != null &&
-          d.contractMultiplier !== 100 && {
-            metadata: { [METADATA_CONTRACT_MULTIPLIER]: d.contractMultiplier },
-          }),
+        ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
       };
     },
   },
@@ -283,9 +356,10 @@ export const ACTIVITY_FORM_CONFIG: Record<
     component: DepositForm as ComponentType<ActivityFormComponentProps<ActivityFormValues>>,
     activityType: ActivityType.DEPOSIT,
     getDefaults: (activity, accounts) => {
-      const meta = activity?.metadata as Record<string, unknown> | undefined;
-      const depositMeta = meta?.term_deposit as Record<string, string> | undefined;
-      const isFixed = depositMeta != null;
+      const depositTerm = getDepositTermDetails(activity);
+      const subtype = activity?.subtype?.trim().toUpperCase();
+      const isFixed =
+        subtype === ACTIVITY_SUBTYPES.FIXED_TERM || (subtype == null && depositTerm != null);
       return {
         ...getBaseDefaults(activity, accounts),
         amount: absNum(activity?.amount),
@@ -295,37 +369,35 @@ export const ACTIVITY_FORM_CONFIG: Record<
         // Deposit type
         depositType: isFixed ? DEPOSIT_TYPES.FIXED : DEPOSIT_TYPES.DEMAND,
         // Fixed-term fields from metadata
-        interestStartDate: depositMeta?.interest_start_date
-          ? new Date(depositMeta.interest_start_date)
-          : null,
-        maturityDate: depositMeta?.maturity_date
-          ? new Date(depositMeta.maturity_date)
-          : null,
-        interestRate: depositMeta?.interest_rate
-          ? parseFloat(depositMeta.interest_rate as string)
-          : null,
+        interestStartDate: depositTerm?.interestStartDate ?? null,
+        maturityDate: depositTerm?.maturityDate ?? null,
+        interestRate: depositTerm?.interestRate ?? null,
       };
     },
     toPayload: (data) => {
       const d = data as DepositFormValues;
       const isFixed = d.depositType === DEPOSIT_TYPES.FIXED;
+      const subtype = isFixed ? ACTIVITY_SUBTYPES.FIXED_TERM : ACTIVITY_SUBTYPES.DEMAND;
       return {
         accountId: d.accountId,
         activityDate: d.activityDate,
         amount: d.amount,
+        quantity: 1,
+        unitPrice: d.amount,
         comment: d.comment,
+        subtype,
         currency: d.currency,
         fxRate: d.fxRate,
         // Store fixed-term info in metadata
-        ...(isFixed && {
-          metadata: {
-            term_deposit: {
-              interest_start_date: d.interestStartDate?.toISOString().split("T")[0] ?? "",
-              maturity_date: d.maturityDate?.toISOString().split("T")[0] ?? "",
-              interest_rate: String(d.interestRate ?? ""),
-            },
-          },
-        }),
+        metadata: isFixed
+          ? {
+              term_deposit: {
+                interest_start_date: d.interestStartDate ? formatDateISO(d.interestStartDate) : "",
+                maturity_date: d.maturityDate ? formatDateISO(d.maturityDate) : "",
+                interest_rate: String(d.interestRate ?? ""),
+              },
+            }
+          : {},
       };
     },
   },

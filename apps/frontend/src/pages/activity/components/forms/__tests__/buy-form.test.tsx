@@ -133,6 +133,21 @@ describe("BuyForm", () => {
       expect(screen.getByTestId("textarea-comment")).toBeInTheDocument();
     });
 
+    it("renders maturity date for WMP buys", () => {
+      render(
+        <BuyForm
+          accounts={mockAccounts}
+          onSubmit={mockOnSubmit}
+          defaultValues={{
+            assetType: "wmp",
+            maturityDate: new Date("2029-01-01T00:00:00.000Z"),
+          }}
+        />,
+      );
+
+      expect(screen.getByTestId("date-picker-maturityDate")).toBeInTheDocument();
+    });
+
     it("renders submit button with correct text for new buy", () => {
       render(<BuyForm accounts={mockAccounts} onSubmit={mockOnSubmit} />);
 

@@ -41,6 +41,7 @@ fn parse_instrument_type_from_provider(asset_type: &str) -> Option<InstrumentTyp
         "CURRENCY" | "FOREX" | "FX" => Some(InstrumentType::Fx),
         "OPTION" => Some(InstrumentType::Option),
         "COMMODITY" => Some(InstrumentType::Metal),
+        "WMP" | "WEALTH_MANAGEMENT_PRODUCT" => Some(InstrumentType::Wmp),
         _ => None,
     }
 }
@@ -684,11 +685,14 @@ impl AssetService {
                         | InstrumentType::Fx
                         | InstrumentType::Option
                         | InstrumentType::Bond
+                        | InstrumentType::Wmp
                 )
             ),
             Some(InstrumentType::Metal) => matches!(actual, Some(InstrumentType::Metal) | None),
             Some(InstrumentType::Option) => actual == Some(InstrumentType::Option),
-            Some(InstrumentType::Bond) => actual == Some(InstrumentType::Bond),
+            Some(InstrumentType::Bond) | Some(InstrumentType::Wmp) => {
+                matches!(actual, Some(InstrumentType::Bond | InstrumentType::Wmp))
+            }
             _ => true,
         }
     }
@@ -796,7 +800,9 @@ impl AssetService {
                 symbol,
                 quote: Cow::Owned(quote_ccy.unwrap_or("USD").to_string()),
             }),
-            Some(InstrumentType::Bond) => Some(ProviderInstrument::BondIsin { isin: symbol }),
+            Some(InstrumentType::Bond) | Some(InstrumentType::Wmp) => {
+                Some(ProviderInstrument::BondIsin { isin: symbol })
+            }
         }
     }
 
@@ -826,7 +832,7 @@ impl AssetService {
             InstrumentType::Option => Some(MarketInstrumentId::Option {
                 occ_symbol: Arc::from(symbol),
             }),
-            InstrumentType::Bond => Some(MarketInstrumentId::Bond {
+            InstrumentType::Bond | InstrumentType::Wmp => Some(MarketInstrumentId::Bond {
                 isin: Arc::from(symbol),
             }),
         }
@@ -1113,6 +1119,7 @@ impl AssetService {
             super::build_asset_metadata(
                 spec.instrument_type.as_ref(),
                 resolved_symbol.as_deref().unwrap_or(""),
+                spec.metadata.as_ref(),
             )
         });
 
@@ -3915,6 +3922,18 @@ mod tests {
     }
 
     #[test]
+    fn test_wmp_provider_config_is_none() {
+        let provider_config = AssetService::inferred_provider_config(
+            QuoteMode::Market,
+            Some(&InstrumentType::Wmp),
+            Some("WMP-001"),
+            None,
+        );
+
+        assert!(provider_config.is_none());
+    }
+
+    #[test]
     fn test_equity_provider_config_is_not_defaulted_to_yahoo() {
         let provider_config = AssetService::inferred_provider_config(
             QuoteMode::Market,
@@ -3967,6 +3986,31 @@ mod tests {
             metadata: Some(serde_json::json!({
                 "identifiers": {
                     "isin": "US912797NQ65"
+                }
+            })),
+            ..test_market_asset()
+        };
+        let after = Asset {
+            metadata: Some(serde_json::json!({
+                "identifiers": {
+                    "isin": "IT0005415291"
+                }
+            })),
+            ..before.clone()
+        };
+
+        assert!(AssetService::should_reset_sync_state_after_profile_change(
+            &before, &after
+        ));
+    }
+
+    #[test]
+    fn test_wmp_isin_metadata_change_resets_sync_state() {
+        let before = Asset {
+            instrument_type: Some(InstrumentType::Wmp),
+            metadata: Some(serde_json::json!({
+                "identifiers": {
+                    "isin": "US1234567890"
                 }
             })),
             ..test_market_asset()

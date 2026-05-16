@@ -1,4 +1,9 @@
-import { ActivityStatus, ActivityTypeNames, SUBTYPE_DISPLAY_NAMES } from "@/lib/constants";
+import {
+  ActivityStatus,
+  ActivityType,
+  ActivityTypeNames,
+  SUBTYPE_DISPLAY_NAMES,
+} from "@/lib/constants";
 import { parseOccSymbol } from "@/lib/occ-symbol";
 import type { ActivityDetails } from "@/lib/types";
 import {
@@ -13,6 +18,7 @@ import {
 } from "@wealthfolio/ui";
 import { AmountDisplay } from "@wealthfolio/ui/components/financial/amount-display";
 import { format } from "date-fns";
+import { formatDepositTermRange, getDepositTermDetails } from "../utils/deposit-utils";
 
 interface ActivityDetailSheetProps {
   activity: ActivityDetails | null;
@@ -77,6 +83,7 @@ export function ActivityDetailSheet({ activity, open, onOpenChange }: ActivityDe
   const subtypeDisplay = activity.subtype
     ? SUBTYPE_DISPLAY_NAMES[activity.subtype] || activity.subtype
     : null;
+  const depositTermRange = formatDepositTermRange(getDepositTermDetails(activity));
 
   const formatDate = (date: Date | string | undefined) => {
     if (!date) return "—";
@@ -181,6 +188,7 @@ export function ActivityDetailSheet({ activity, open, onOpenChange }: ActivityDe
               }
             />
             {subtypeDisplay && <DetailRow label="Subtype" value={subtypeDisplay} />}
+            {depositTermRange && <DetailRow label="Interest Period" value={depositTermRange} />}
             <DetailRow label="Date & Time" value={formatDate(activity.date)} />
             <DetailRow label="Account" value={activity.accountName} />
           </DetailSection>
@@ -206,19 +214,31 @@ export function ActivityDetailSheet({ activity, open, onOpenChange }: ActivityDe
 
           {/* Financial Details */}
           <DetailSection title="Financial Details" icon={<Icons.DollarSign className="h-4 w-4" />}>
-            {Number(activity.quantity) !== 0 && (
+            {(activity.activityType === ActivityType.DEPOSIT ||
+              Number(activity.quantity) !== 0) && (
               <DetailRow
                 label={isOption ? "Contracts" : "Quantity"}
-                value={Number(activity.quantity).toLocaleString(undefined, {
+                value={(activity.activityType === ActivityType.DEPOSIT
+                  ? 1
+                  : Number(activity.quantity)
+                ).toLocaleString(undefined, {
                   maximumFractionDigits: 8,
                 })}
               />
             )}
-            {Number(activity.unitPrice) !== 0 && (
+            {(activity.activityType === ActivityType.DEPOSIT ||
+              Number(activity.unitPrice) !== 0) && (
               <DetailRow
                 label={isOption ? "Premium/Share" : "Unit Price"}
                 value={
-                  <AmountDisplay value={Number(activity.unitPrice)} currency={activity.currency} />
+                  <AmountDisplay
+                    value={
+                      activity.activityType === ActivityType.DEPOSIT && !activity.unitPrice
+                        ? Number(activity.amount)
+                        : Number(activity.unitPrice)
+                    }
+                    currency={activity.currency}
+                  />
                 }
               />
             )}

@@ -313,6 +313,7 @@ export function useActivityMutations(
       assetSymbol,
       exchangeMic,
       assetQuoteMode,
+      metadata,
       ...restOfActivityData
     } = activityToDuplicate;
 
@@ -330,6 +331,7 @@ export function useActivityMutations(
       fxRate: restOfActivityData.fxRate ?? undefined,
       activityDate: date,
       comment: "Duplicated",
+      metadata: metadata ? { ...metadata } : undefined,
       asset: buildAssetResolutionInput({
         id: _assetId,
         symbol: assetSymbol,

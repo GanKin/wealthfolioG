@@ -9,6 +9,7 @@ interface ActivityFormRendererProps {
   selectedType: PickerActivityType | undefined;
   accounts: AccountSelectOption[];
   defaultValues: Partial<ActivityFormValues> | undefined;
+  activityId?: string;
   onSubmit: (data: ActivityFormValues) => void | Promise<void>;
   onCancel?: () => void;
   isLoading?: boolean;
@@ -23,6 +24,7 @@ export function ActivityFormRenderer({
   selectedType,
   accounts,
   defaultValues,
+  activityId,
   onSubmit,
   onCancel,
   isLoading,
@@ -43,7 +45,7 @@ export function ActivityFormRenderer({
   const accountSignature = accounts
     .map((account) => `${account.value}:${account.currency}`)
     .join("|");
-  const formKey = `${selectedType}:${defaultAccountId}:${defaultCurrency}:${accountSignature}`;
+  const formKey = `${selectedType}:${activityId ?? defaultAccountId}:${defaultCurrency}:${accountSignature}`;
 
   // Key forces re-mount when form identity changes (type/account defaults/accounts list).
   return (

@@ -156,7 +156,7 @@ export function DepositForm({
             <AmountInput name="amount" label="Amount" currency={currency} />
 
             {/* Deposit Type Selector */}
-            <div className="space-y-2">
+            <div className="space-y-3">
               <Label>Deposit Type</Label>
               <RadioGroup
                 value={depositType}
@@ -175,13 +175,13 @@ export function DepositForm({
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value={DEPOSIT_TYPES.DEMAND} id="deposit-demand" />
                   <Label htmlFor="deposit-demand" className="cursor-pointer">
-                    Demand Deposit (活期存款)
+                    Demand Deposit
                   </Label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value={DEPOSIT_TYPES.FIXED} id="deposit-fixed" />
                   <Label htmlFor="deposit-fixed" className="cursor-pointer">
-                    Fixed-Term Deposit (定期存款)
+                    Fixed-Term Deposit
                   </Label>
                 </div>
               </RadioGroup>
@@ -190,11 +190,15 @@ export function DepositForm({
             {/* Fixed-Term Deposit Fields */}
             {depositType === DEPOSIT_TYPES.FIXED && (
               <div className="space-y-4 rounded-md border p-4">
-                <DatePicker name="interestStartDate" label="Interest Start Date (起息日)" />
-                <DatePicker name="maturityDate" label="Maturity Date (到期日)" />
+                <DatePicker
+                  name="interestStartDate"
+                  label="Interest Start Date"
+                  enableTime={false}
+                />
+                <DatePicker name="maturityDate" label="Maturity Date" enableTime={false} />
                 <AmountInput
                   name="interestRate"
-                  label="Interest Rate % (定期利率)"
+                  label="Interest Rate %"
                   currency={undefined}
                   placeholder="e.g. 3.5"
                   maxDecimalPlaces={4}
@@ -202,7 +206,7 @@ export function DepositForm({
               </div>
             )}
 
-            {/* Advanced Options - Currency and FX Rate (no subtypes for deposits) */}
+            {/* Advanced Options - Currency and FX Rate (deposit subtype comes from the selector above) */}
             <AdvancedOptionsSection
               currencyName="currency"
               fxRateName="fxRate"

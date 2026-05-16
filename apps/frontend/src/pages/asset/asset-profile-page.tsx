@@ -320,9 +320,13 @@ export const AssetProfilePage = () => {
     return quoteHistory?.at(0) ?? null;
   }, [quoteHistory]);
 
-  // Bond metadata for display (only when asset is a bond)
+  // Bond-like metadata for display (bond or WMP)
   const bondSpec = useMemo(() => {
-    if (assetProfile?.instrumentType !== "BOND" || !assetProfile?.metadata) return null;
+    if (
+      !["BOND", "WMP"].includes(assetProfile?.instrumentType ?? "") ||
+      !assetProfile?.metadata
+    )
+      return null;
     const bond = assetProfile.metadata.bond as
       | {
           maturityDate?: string | null;

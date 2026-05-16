@@ -35,6 +35,7 @@ const ASSET_TYPE_OPTIONS = [
   { value: "EQUITY", label: "Equity (Stock, ETF, Fund)" },
   { value: "CRYPTO", label: "Cryptocurrency" },
   { value: "BOND", label: "Bond" },
+  { value: "WMP", label: "WMP" },
   { value: "OPTION", label: "Option" },
   { value: "METAL", label: "Metal (Commodity)" },
   { value: "OTHER", label: "Other" },
@@ -47,7 +48,7 @@ const customAssetSchema = z.object({
     .max(20, "Symbol must be 20 characters or less")
     .transform((val) => val.toUpperCase().trim()),
   name: z.string().min(1, "Name is required").max(100, "Name must be 100 characters or less"),
-  assetType: z.enum(["EQUITY", "CRYPTO", "BOND", "OPTION", "METAL", "OTHER"]),
+  assetType: z.enum(["EQUITY", "CRYPTO", "BOND", "WMP", "OPTION", "METAL", "OTHER"]),
   currency: z.string().min(1, "Currency is required"),
 });
 
@@ -108,6 +109,8 @@ export function CreateCustomAssetDialog({
           ? "CRYPTOCURRENCY"
           : values.assetType === "OTHER"
             ? "OTHER"
+            : values.assetType === "WMP"
+              ? "WMP"
             : values.assetType,
       index: "MANUAL",
       typeDisplay: "Custom Asset",

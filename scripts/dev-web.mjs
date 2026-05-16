@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
 import { createWriteStream, readFileSync, existsSync, mkdirSync } from "node:fs";
-import { resolve, basename } from "node:path";
+import { basename, join, resolve } from "node:path";
+import { homedir } from "node:os";
 
 function loadDotenvFile(file) {
   const p = resolve(process.cwd(), file);
@@ -32,6 +33,13 @@ loadDotenvFile(".env.web");
 // Set build target for web mode
 process.env.BUILD_TARGET = "web";
 
+// Keep local web dev aligned with the Vite proxy default.
+// A missing .env.web should still start the backend on the port Vite expects.
+const defaultApiTarget = "http://127.0.0.1:8080";
+process.env.WF_LISTEN_ADDR ||= "127.0.0.1:8080";
+process.env.WF_API_TARGET ||= process.env.VITE_API_TARGET || defaultApiTarget;
+process.env.VITE_API_TARGET ||= process.env.WF_API_TARGET || defaultApiTarget;
+
 const fileLog = process.argv.includes("--file-log");
 let logStream = null;
 
@@ -44,6 +52,23 @@ if (fileLog) {
 
 const children = new Map();
 let exiting = false;
+
+function resolveCargoCommand() {
+  const candidates = [
+    process.env.CARGO_BIN,
+    process.env.CARGO_HOME ? join(process.env.CARGO_HOME, "bin", "cargo") : null,
+    join(homedir(), ".cargo", "bin", "cargo"),
+    "cargo",
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    if (candidate !== "cargo" && existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return "cargo";
+}
 
 function spawnNamed(name, cmd, args, opts = {}) {
   const stdio = logStream ? ["inherit", "pipe", "pipe"] : "inherit";
@@ -126,5 +151,5 @@ process.on("SIGTERM", () => shutdownAndExit(143));
 
 // Start backend and Vite
 process.env.WF_ENABLE_VITE_PROXY = "true";
-spawnNamed("server", "cargo", ["run", "--manifest-path", "apps/server/Cargo.toml"]);
+spawnNamed("server", resolveCargoCommand(), ["run", "--manifest-path", "apps/server/Cargo.toml"]);
 spawnNamed("vite", "pnpm", ["--filter", "frontend", "dev"]);

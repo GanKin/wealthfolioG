@@ -25,8 +25,18 @@ vi.mock("../fields", () => ({
       ))}
     </select>
   ),
-  DatePicker: ({ name, label }: { name: string; label: string }) => (
-    <div data-testid={`date-picker-${name}`}>{label}</div>
+  DatePicker: ({
+    name,
+    label,
+    enableTime,
+  }: {
+    name: string;
+    label: string;
+    enableTime?: boolean;
+  }) => (
+    <div data-testid={`date-picker-${name}`} data-enable-time={String(enableTime)}>
+      {label}
+    </div>
   ),
   AmountInput: ({ name, label }: { name: string; label: string }) => (
     <div>
@@ -74,6 +84,17 @@ vi.mock("@wealthfolio/ui/components/ui/card", () => ({
   Card: ({ children }: { children: React.ReactNode }) => <div data-testid="card">{children}</div>,
   CardContent: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="card-content">{children}</div>
+  ),
+}));
+
+vi.mock("@wealthfolio/ui/components/ui/radio-group", () => ({
+  RadioGroup: ({ children, value }: { children: React.ReactNode; value?: string }) => (
+    <div data-testid="radio-group" data-value={value}>
+      {children}
+    </div>
+  ),
+  RadioGroupItem: ({ value, id }: { value: string; id: string }) => (
+    <input type="radio" value={value} id={id} />
   ),
 }));
 
@@ -187,6 +208,35 @@ describe("DepositForm", () => {
       // The AccountSelect mock should receive the accounts
       const select = screen.getByTestId("select-accountId");
       expect(select).toBeInTheDocument();
+    });
+
+    it("renders fixed-term date pickers without time selection", () => {
+      render(
+        <DepositForm
+          accounts={mockAccounts}
+          onSubmit={mockOnSubmit}
+          defaultValues={{
+            accountId: "acc-1",
+            activityDate: new Date(),
+            amount: 1000,
+            comment: null,
+            depositType: "fixed",
+            interestStartDate: new Date("2026-01-01T00:00:00.000Z"),
+            maturityDate: new Date("2029-01-01T00:00:00.000Z"),
+            interestRate: 1.3,
+            currency: "USD",
+          }}
+        />,
+      );
+
+      expect(screen.getByTestId("date-picker-interestStartDate")).toHaveAttribute(
+        "data-enable-time",
+        "false",
+      );
+      expect(screen.getByTestId("date-picker-maturityDate")).toHaveAttribute(
+        "data-enable-time",
+        "false",
+      );
     });
   });
 

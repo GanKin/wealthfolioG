@@ -51,6 +51,7 @@ pub enum InstrumentType {
     Option, // Options contracts
     Metal,  // Precious metal spot prices (XAU, XAG)
     Bond,   // Fixed-income instruments (bonds, T-bills, notes)
+    Wmp,    // Wealth management product / bank cash management product
 }
 
 /// How the asset is priced/quoted
@@ -82,6 +83,7 @@ impl InstrumentType {
             InstrumentType::Option => "OPTION",
             InstrumentType::Metal => "METAL",
             InstrumentType::Bond => "BOND",
+            InstrumentType::Wmp => "WMP",
         }
     }
 
@@ -94,6 +96,7 @@ impl InstrumentType {
             "OPTION" => Some(InstrumentType::Option),
             "METAL" => Some(InstrumentType::Metal),
             "BOND" => Some(InstrumentType::Bond),
+            "WMP" => Some(InstrumentType::Wmp),
             _ => None,
         }
     }
@@ -110,6 +113,7 @@ impl InstrumentType {
             "BOND" | "FIXEDINCOME" | "FIXED_INCOME" | "DEBT" | "MONEYMARKET" => {
                 Some(InstrumentType::Bond)
             }
+            "WMP" | "WEALTH_MANAGEMENT_PRODUCT" => Some(InstrumentType::Wmp),
             _ => None,
         }
     }
@@ -149,7 +153,12 @@ pub struct BondSpec {
 pub fn build_asset_metadata(
     instrument_type: Option<&InstrumentType>,
     symbol: &str,
+    extra_metadata: Option<&Value>,
 ) -> Option<serde_json::Value> {
+    let parsed_bond_metadata = extra_metadata
+        .and_then(|meta| meta.get("bond"))
+        .and_then(|value| serde_json::from_value::<BondSpec>(value.clone()).ok());
+
     match instrument_type? {
         InstrumentType::Option => {
             let parsed = crate::utils::occ_symbol::parse_occ_symbol(symbol).ok()?;
@@ -163,19 +172,36 @@ pub fn build_asset_metadata(
             };
             Some(serde_json::json!({ "option": spec }))
         }
-        InstrumentType::Bond => {
+        InstrumentType::Bond | InstrumentType::Wmp => {
             // For US Treasury bills (CUSIP prefix 912797), set zero coupon.
             // Other bonds get None and rely on user/provider to fill in.
-            let is_tbill = symbol.starts_with("US912797") || symbol.starts_with("912797");
+            let is_tbill = matches!(instrument_type, Some(InstrumentType::Bond))
+                && (symbol.starts_with("US912797") || symbol.starts_with("912797"));
             let spec = BondSpec {
-                isin: Some(symbol.to_uppercase()),
-                coupon_rate: if is_tbill { Some(Decimal::ZERO) } else { None },
-                coupon_frequency: if is_tbill {
-                    Some("ZERO".to_string())
-                } else {
-                    None
+                maturity_date: parsed_bond_metadata
+                    .as_ref()
+                    .and_then(|spec| spec.maturity_date),
+                coupon_rate: parsed_bond_metadata
+                    .as_ref()
+                    .and_then(|spec| spec.coupon_rate)
+                    .or(if is_tbill { Some(Decimal::ZERO) } else { None }),
+                face_value: parsed_bond_metadata
+                    .as_ref()
+                    .and_then(|spec| spec.face_value),
+                coupon_frequency: parsed_bond_metadata
+                    .as_ref()
+                    .and_then(|spec| spec.coupon_frequency.clone())
+                    .or(if is_tbill {
+                        Some("ZERO".to_string())
+                    } else {
+                        None
+                    }),
+                isin: match instrument_type {
+                    Some(InstrumentType::Wmp) => parsed_bond_metadata
+                        .as_ref()
+                        .and_then(|spec| spec.isin.clone()),
+                    _ => Some(symbol.to_uppercase()),
                 },
-                ..Default::default()
             };
             Some(serde_json::json!({ "bond": spec }))
         }
@@ -364,7 +390,15 @@ impl Asset {
 
     /// Returns true if this asset is a bond / fixed-income instrument.
     pub fn is_bond(&self) -> bool {
-        self.instrument_type == Some(InstrumentType::Bond)
+        matches!(
+            self.instrument_type,
+            Some(InstrumentType::Bond | InstrumentType::Wmp)
+        )
+    }
+
+    /// Returns true if this asset is a WMP / bank wealth-management product.
+    pub fn is_wmp(&self) -> bool {
+        self.instrument_type == Some(InstrumentType::Wmp)
     }
 
     /// Returns true if this asset is a precious metal.
@@ -475,7 +509,7 @@ impl Asset {
                     occ_symbol: Arc::from(symbol.as_str()),
                 })
             }
-            InstrumentType::Bond => {
+            InstrumentType::Bond | InstrumentType::Wmp => {
                 let isin = self
                     .metadata_identifier("isin")
                     .map(|isin| isin.to_uppercase())
@@ -1004,7 +1038,7 @@ pub fn canonicalize_market_identity(
                 quote_ccy: normalized_quote,
             }
         }
-        Some(InstrumentType::Bond) => {
+        Some(InstrumentType::Bond | InstrumentType::Wmp) => {
             // Bonds use ISIN as symbol (uppercase, no exchange suffix)
             if let Some(raw) = instrument_symbol.as_deref() {
                 let upper = raw.to_uppercase();
@@ -1176,7 +1210,7 @@ mod tests {
 
     #[test]
     fn test_build_asset_metadata_tbill_isin() {
-        let meta = build_asset_metadata(Some(&InstrumentType::Bond), "US912797NQ65");
+        let meta = build_asset_metadata(Some(&InstrumentType::Bond), "US912797NQ65", None);
         let meta = meta.expect("T-bill should produce metadata");
         let bond: BondSpec = serde_json::from_value(meta.get("bond").cloned().unwrap()).unwrap();
 
@@ -1200,7 +1234,7 @@ mod tests {
 
     #[test]
     fn test_build_asset_metadata_corporate_bond_isin() {
-        let meta = build_asset_metadata(Some(&InstrumentType::Bond), "US00507VAJ89");
+        let meta = build_asset_metadata(Some(&InstrumentType::Bond), "US00507VAJ89", None);
         let meta = meta.expect("Corporate bond should produce metadata");
         let bond: BondSpec = serde_json::from_value(meta.get("bond").cloned().unwrap()).unwrap();
 
@@ -1298,4 +1332,19 @@ mod tests {
             sym
         );
     }
+
+    #[test]
+    fn test_canonicalize_market_identity_wmp_passthrough() {
+        let result = canonicalize_market_identity(
+            Some(InstrumentType::Wmp),
+            Some("WMP-001"),
+            Some("XNYS"),
+            Some("USD"),
+        );
+
+        assert_eq!(result.instrument_symbol.as_deref(), Some("WMP-001"));
+        assert_eq!(result.instrument_exchange_mic, None);
+        assert_eq!(result.quote_ccy.as_deref(), Some("USD"));
+    }
+
 }

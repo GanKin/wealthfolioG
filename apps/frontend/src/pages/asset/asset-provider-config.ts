@@ -10,6 +10,7 @@ export function getOverrideTypeForInstrumentType(
 ): ProviderOverrideType {
   switch (instrumentType) {
     case "BOND":
+    case "WMP":
       return "bond_isin";
     case "CRYPTO":
     case "CRYPTOCURRENCY":

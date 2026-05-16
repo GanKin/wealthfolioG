@@ -326,6 +326,7 @@ impl ActivityService {
             "BOND" | "FIXEDINCOME" | "FIXED_INCOME" | "DEBT" | "MONEYMARKET" => {
                 Some(InstrumentType::Bond)
             }
+            "WMP" | "WEALTH_MANAGEMENT_PRODUCT" => Some(InstrumentType::Wmp),
             _ => None,
         }
     }
@@ -894,6 +895,7 @@ impl ActivityService {
                 "FX_RATE" | "FX" => return (AssetKind::Fx, Some(InstrumentType::Fx)),
                 "OPTION" | "OPT" => return (AssetKind::Investment, Some(InstrumentType::Option)),
                 "BOND" => return (AssetKind::Investment, Some(InstrumentType::Bond)),
+                "WMP" => return (AssetKind::Investment, Some(InstrumentType::Wmp)),
                 "COMMODITY" | "CMDTY" | "METAL" => {
                     return (AssetKind::Investment, Some(InstrumentType::Metal))
                 }
@@ -1383,7 +1385,11 @@ impl ActivityService {
                 // Create new asset with generated UUID
                 let new_id = Uuid::new_v4().to_string();
 
-                // Build structured metadata for option/bond/metal assets
+                // Build structured metadata for option/bond/WMP/metal assets
+                let activity_metadata = activity
+                    .metadata
+                    .as_deref()
+                    .and_then(|value| serde_json::from_str::<serde_json::Value>(value).ok());
                 let structured_metadata = if let Some(mult) =
                     Self::custom_option_multiplier(activity.metadata.as_deref())
                 {
@@ -1392,6 +1398,7 @@ impl ActivityService {
                     crate::assets::build_asset_metadata(
                         effective_instrument_type.as_ref(),
                         normalized_symbol,
+                        activity_metadata.as_ref(),
                     )
                 };
 
@@ -1815,6 +1822,10 @@ impl ActivityService {
                 Some(id)
             } else {
                 let new_id = Uuid::new_v4().to_string();
+                let activity_metadata = activity
+                    .metadata
+                    .as_deref()
+                    .and_then(|value| serde_json::from_str::<serde_json::Value>(value).ok());
                 let structured_metadata = if let Some(mult) =
                     Self::custom_option_multiplier(activity.metadata.as_deref())
                 {
@@ -1823,6 +1834,7 @@ impl ActivityService {
                     crate::assets::build_asset_metadata(
                         effective_instrument_type.as_ref(),
                         normalized_symbol,
+                        activity_metadata.as_ref(),
                     )
                 };
                 let metadata = crate::assets::AssetMetadata {
@@ -2363,7 +2375,8 @@ impl ActivityService {
             | InstrumentType::Fx
             | InstrumentType::Option
             | InstrumentType::Metal
-            | InstrumentType::Bond => true,
+            | InstrumentType::Bond
+            | InstrumentType::Wmp => true,
         }
     }
 

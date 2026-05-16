@@ -29,6 +29,7 @@ const FIELD_LABELS: Record<string, string> = {
   unitPrice: "Price",
   amount: "Amount",
   fee: "Fee",
+  maturityDate: "Maturity Date",
   currency: "Currency",
   fxRate: "FX Rate",
   comment: "Notes",

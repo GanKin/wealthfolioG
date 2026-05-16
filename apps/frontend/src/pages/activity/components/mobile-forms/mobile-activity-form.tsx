@@ -25,6 +25,7 @@ import {
 import { buildOccSymbol, parseOccSymbol } from "@/lib/occ-symbol";
 import { generateId } from "@/lib/id";
 import type { ActivityCreate, ActivityDetails } from "@/lib/types";
+import { formatDateISO } from "@/lib/utils";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { useForm, type Resolver, type SubmitHandler } from "react-hook-form";
@@ -86,6 +87,41 @@ const CASH_AMOUNT_ACTIVITY_TYPES: readonly string[] = [
   ActivityType.CREDIT,
 ];
 const INCOME_ACTIVITY_TYPES: readonly string[] = [ActivityType.DIVIDEND, ActivityType.INTEREST];
+
+function parseMetadataDate(value: unknown): Date | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const parsed = new Date(`${trimmed}T12:00:00`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function extractWmpMaturityDate(metadata: unknown): Date | null {
+  if (!metadata || typeof metadata !== "object") return null;
+  const record = metadata as Record<string, unknown>;
+  const bond = record.bond as Record<string, unknown> | undefined;
+  const wmp = record.wmp as Record<string, unknown> | undefined;
+  return (
+    parseMetadataDate(bond?.maturityDate) ||
+    parseMetadataDate(bond?.maturity_date) ||
+    parseMetadataDate(wmp?.maturityDate) ||
+    parseMetadataDate(wmp?.maturity_date)
+  );
+}
+
+function extractTradeInstrumentType(activity: Partial<ActivityDetails> | undefined): string | undefined {
+  if (!activity?.metadata || typeof activity.metadata !== "object") {
+    return activity?.instrumentType?.trim().toUpperCase();
+  }
+
+  const record = activity.metadata as Record<string, unknown>;
+  const metadataTradeType = record.tradeInstrumentType;
+  if (typeof metadataTradeType === "string" && metadataTradeType.trim()) {
+    return metadataTradeType.trim().toUpperCase();
+  }
+
+  return activity.instrumentType?.trim().toUpperCase();
+}
 
 /**
  * Validates transfer-specific fields that the Zod schema can't enforce
@@ -149,6 +185,10 @@ function validateTradeFields(data: Record<string, unknown>): TransferValidationE
     }
     if (!data.optionType) {
       return { field: "optionType", message: "Option type is required." };
+    }
+  } else if (assetType === "wmp") {
+    if (!(data.maturityDate instanceof Date) || Number.isNaN(data.maturityDate.getTime())) {
+      return { field: "maturityDate", message: "Maturity date is required." };
     }
   } else {
     if (!(data.assetId as string)?.trim()) {
@@ -230,10 +270,13 @@ export function MobileActivityForm({ accounts, activity, open, onClose }: Mobile
     isSecuritiesTransfer(activity?.activityType ?? "", activity?.assetSymbol, activity?.assetId);
   const initialTransferMode = isSecurityTransferActivity ? "securities" : "cash";
 
-  // Detect option/bond activities for editing
-  const isOptionActivity = activity?.instrumentType === "OPTION";
-  const isBondActivity = activity?.instrumentType === "BOND";
+  // Detect option/bond/wmp activities for editing
+  const tradeInstrumentType = extractTradeInstrumentType(activity);
+  const isOptionActivity = tradeInstrumentType === "OPTION";
+  const isBondActivity = tradeInstrumentType === "BOND";
+  const isWmpActivity = tradeInstrumentType === "WMP";
   const parsedOcc = isOptionActivity ? parseOccSymbol(activity?.assetSymbol ?? "") : null;
+  const wmpMaturityDate = isWmpActivity ? extractWmpMaturityDate(activity?.metadata) : null;
 
   const defaultValues: Partial<NewActivityFormValues> = {
     id: activity?.id,
@@ -293,6 +336,12 @@ export function MobileActivityForm({ accounts, activity, open, onClose }: Mobile
       assetKind: "BOND",
       symbolQuoteCcy: activity?.currency ?? undefined,
     }),
+    ...(isWmpActivity && {
+      assetType: "wmp" as const,
+      assetKind: "WMP",
+      symbolQuoteCcy: activity?.currency ?? undefined,
+      maturityDate: wmpMaturityDate,
+    }),
   };
 
   const form = useForm<NewActivityFormValues>({
@@ -332,6 +381,7 @@ export function MobileActivityForm({ accounts, activity, open, onClose }: Mobile
         expirationDate: _expiration,
         optionType: _optType,
         contractMultiplier: _multiplier,
+        maturityDate: _maturityDate,
         id,
         ...submitData
       } = data as any;
@@ -378,6 +428,18 @@ export function MobileActivityForm({ accounts, activity, open, onClose }: Mobile
       if (_assetType === "bond") {
         submitData.symbolInstrumentType = submitData.symbolInstrumentType ?? "BOND";
       }
+      if (_assetType === "wmp") {
+        submitData.symbolInstrumentType = submitData.symbolInstrumentType ?? "WMP";
+        submitData.quoteMode = QuoteMode.MANUAL;
+        if (_maturityDate instanceof Date) {
+          submitData.metadata = {
+            ...(submitData.metadata as Record<string, unknown> | undefined),
+            bond: {
+              maturityDate: formatDateISO(_maturityDate),
+            },
+          };
+        }
+      }
 
       // Ensure symbolQuoteCcy is set — manual/custom symbols leave it undefined
       if (!submitData.symbolQuoteCcy && submitData.currency) {
@@ -402,6 +464,7 @@ export function MobileActivityForm({ accounts, activity, open, onClose }: Mobile
       }
 
       const transferIsExternal = isTransferActivity ? (_isExternal ?? false) : false;
+      const isDepositActivity = submitData.activityType === ActivityType.DEPOSIT;
 
       // Internal transfer: create paired TRANSFER_OUT + TRANSFER_IN activities
       if (isTransferActivity && !transferIsExternal && _toAccountId) {
@@ -469,6 +532,7 @@ export function MobileActivityForm({ accounts, activity, open, onClose }: Mobile
         await saveActivitiesMutation.mutateAsync({
           creates: [transferOutActivity, transferInActivity],
         });
+        toast.success(activity?.id ? "Transfer updated" : "Transfer added");
 
         form.reset(defaultValues);
         setCurrentStep(1);
@@ -483,8 +547,13 @@ export function MobileActivityForm({ accounts, activity, open, onClose }: Mobile
         !isAssetBackedIncome
       ) {
         delete (submitData as Record<string, unknown>).assetId;
-        delete (submitData as Record<string, unknown>).quantity;
-        delete (submitData as Record<string, unknown>).unitPrice;
+        if (isDepositActivity) {
+          submitData.quantity = 1;
+          submitData.unitPrice = submitData.amount;
+        } else {
+          delete (submitData as Record<string, unknown>).quantity;
+          delete (submitData as Record<string, unknown>).unitPrice;
+        }
         if (account && !submitData.currency) {
           submitData.currency = account.currency;
         }
@@ -513,8 +582,10 @@ export function MobileActivityForm({ accounts, activity, open, onClose }: Mobile
           ...submitData,
           currentAssetId,
         } as NewActivityFormValues & { id: string; currentAssetId?: string });
+        toast.success(isTransferActivity ? "Transfer updated" : "Activity updated");
       } else {
         await addActivityMutation.mutateAsync(submitData);
+        toast.success(isTransferActivity ? "Transfer added" : "Activity added");
       }
 
       // Reset form and step after successful submission
@@ -558,6 +629,9 @@ export function MobileActivityForm({ accounts, activity, open, onClose }: Mobile
           // Options: validate underlying instead of assetId (OCC built at submit)
           if (assetType === "option") {
             return [...baseFields, "underlyingSymbol", "quantity", "unitPrice", "fee"];
+          }
+          if (assetType === "wmp") {
+            return [...baseFields, "assetId", "maturityDate", "quantity", "unitPrice", "fee"];
           }
           return [...baseFields, "assetId", "quantity", "unitPrice", "fee"];
         }

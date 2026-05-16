@@ -108,6 +108,7 @@ export function ActivityForm({ accounts, activity, open, onClose }: ActivityForm
             selectedType={effectiveSelectedType}
             accounts={filteredAccounts}
             defaultValues={defaultValues}
+            activityId={activity?.id}
             onSubmit={handleSubmit}
             onCancel={onClose}
             isLoading={isLoading}

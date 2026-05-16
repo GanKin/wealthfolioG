@@ -18,6 +18,7 @@ use std::sync::Arc;
 /// Instrument type hierarchy:
 /// - EQUITY_SECURITY: STOCK_COMMON, STOCK_PREFERRED, DEPOSITARY_RECEIPT, EQUITY_WARRANT_RIGHT, PARTNERSHIP_UNIT
 /// - DEBT_SECURITY: BOND_GOVERNMENT, BOND_CORPORATE, BOND_MUNICIPAL, BOND_CONVERTIBLE, MONEY_MARKET_DEBT
+/// - WMP: WMP (bank wealth-management products)
 /// - FUND: FUND_MUTUAL, FUND_CLOSED_END, FUND_PRIVATE, FUND_FOF
 /// - ETP: ETF, ETN, ETC
 /// - DERIVATIVE: OPTION, FUTURE, OTC_DERIVATIVE, CFD
@@ -39,6 +40,7 @@ fn map_quote_type_to_instrument_type(quote_type: &str, name: Option<&str>) -> Op
             }
         }
         "MONEYMARKET" => Some("MONEY_MARKET_DEBT"),
+        "WMP" | "WEALTH_MANAGEMENT_PRODUCT" => Some("WMP"),
         "FUTURE" | "FUTURES" => Some("FUTURE"),
         // ECNQUOTE: Used by Yahoo for some Canadian/international ETFs and securities
         // Since we can't determine if it's a stock or ETF, skip classification
@@ -79,8 +81,8 @@ fn map_quote_type_to_asset_class(quote_type: &str) -> Option<&'static str> {
     match quote_type.to_uppercase().as_str() {
         // Equity class: stocks, ETFs, mutual funds, options
         "EQUITY" | "ETF" | "MUTUALFUND" | "MUTUAL FUND" | "INDEX" | "OPTION" => Some("EQUITY"),
-        // Fixed Income class: bonds, money market
-        "BOND" | "MONEYMARKET" => Some("FIXED_INCOME"),
+        // Fixed Income class: bonds, money market, WMP
+        "BOND" | "MONEYMARKET" | "WMP" => Some("FIXED_INCOME"),
         // Cash class - assign to child category for drill-down (rollup will sum to CASH)
         "CURRENCY" | "FOREX" | "FX" | "CASH" => Some("CASH_BANK_DEPOSITS"),
         // Cryptocurrency - classify as Digital Assets
@@ -104,6 +106,7 @@ fn map_instrument_type_to_taxonomy_category(
         InstrumentType::Crypto => Some("CRYPTO_NATIVE"),
         InstrumentType::Option => Some("OPTION"),
         InstrumentType::Bond => Some("BOND_CORPORATE"),
+        InstrumentType::Wmp => Some("WMP"),
         InstrumentType::Metal => Some("PHYSICAL_METAL"),
         InstrumentType::Fx => None,
     }
@@ -117,6 +120,7 @@ fn map_instrument_type_to_asset_class(instrument_type: &InstrumentType) -> Optio
         InstrumentType::Crypto => Some("DIGITAL_ASSETS"),
         InstrumentType::Option => Some("EQUITY"),
         InstrumentType::Bond => Some("FIXED_INCOME"),
+        InstrumentType::Wmp => Some("FIXED_INCOME"),
         InstrumentType::Metal => Some("COMMODITIES"),
         InstrumentType::Fx => None,
     }
@@ -540,6 +544,11 @@ mod tests {
             map_quote_type_to_instrument_type("MONEYMARKET", None),
             Some("MONEY_MARKET_DEBT")
         );
+        assert_eq!(map_quote_type_to_instrument_type("WMP", None), Some("WMP"));
+        assert_eq!(
+            map_quote_type_to_instrument_type("WEALTH_MANAGEMENT_PRODUCT", None),
+            Some("WMP")
+        );
         assert_eq!(
             map_quote_type_to_instrument_type("FUTURE", None),
             Some("FUTURE")
@@ -599,8 +608,21 @@ mod tests {
             map_quote_type_to_asset_class("COMMODITY"),
             Some("COMMODITIES")
         );
+        assert_eq!(map_quote_type_to_asset_class("WMP"), Some("FIXED_INCOME"));
         // Unknown
         assert_eq!(map_quote_type_to_asset_class("unknown"), None);
+    }
+
+    #[test]
+    fn test_map_instrument_type_to_taxonomy_category() {
+        assert_eq!(
+            map_instrument_type_to_taxonomy_category(&InstrumentType::Bond),
+            Some("BOND_CORPORATE")
+        );
+        assert_eq!(
+            map_instrument_type_to_taxonomy_category(&InstrumentType::Wmp),
+            Some("WMP")
+        );
     }
 
     #[test]

@@ -130,8 +130,8 @@ export const tradeActivitySchema = baseActivitySchema.extend({
     .min(0, { message: "Fee must be a non-negative number." })
     .default(0),
   quoteMode: z.enum([QuoteMode.MARKET, QuoteMode.MANUAL]).default(QuoteMode.MARKET),
-  // Asset type selection (stock/option/bond)
-  assetType: z.enum(["stock", "option", "bond"]).default("stock"),
+  // Asset type selection (stock/option/bond/wmp)
+  assetType: z.enum(["stock", "option", "bond", "wmp"]).default("stock"),
   assetKind: z.string().optional(),
   // Option-specific fields
   underlyingSymbol: z.string().optional(),
@@ -139,6 +139,7 @@ export const tradeActivitySchema = baseActivitySchema.extend({
   expirationDate: z.string().optional(),
   optionType: z.enum(["CALL", "PUT"]).optional(),
   contractMultiplier: z.coerce.number().positive().default(100).optional(),
+  maturityDate: z.date().optional().nullable(),
 });
 
 // Cash activity schema - DEPOSIT/WITHDRAWAL only

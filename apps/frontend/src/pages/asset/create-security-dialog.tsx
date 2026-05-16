@@ -41,6 +41,7 @@ const INSTRUMENT_TYPE_OPTIONS = [
   { value: "EQUITY", label: "Equity (Stock, ETF, Fund)" },
   { value: "CRYPTO", label: "Cryptocurrency" },
   { value: "BOND", label: "Bond" },
+  { value: "WMP", label: "WMP" },
   { value: "OPTION", label: "Option" },
   { value: "FX", label: "Foreign Exchange" },
   { value: "METAL", label: "Metal (Commodity)" },
@@ -66,6 +67,8 @@ function mapQuoteTypeToInstrumentType(quoteType: string): string | null {
     case "BOND":
     case "MONEYMARKET":
       return "BOND";
+    case "WMP":
+      return "WMP";
     case "OPTION":
       return "OPTION";
     default:

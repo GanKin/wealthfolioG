@@ -38,7 +38,7 @@ const assetMetadataSchema = z
 // Zod schema for BuyForm validation
 export const buyFormSchema = z
   .object({
-    assetType: z.enum(["stock", "option", "bond"]).default("stock"),
+    assetType: z.enum(["stock", "option", "bond", "wmp"]).default("stock"),
     assetKind: z.string().optional(),
     accountId: z.string().min(1, { message: "Please select an account." }),
     assetId: z.string().default(""),
@@ -84,6 +84,7 @@ export const buyFormSchema = z
     expirationDate: z.string().optional(),
     optionType: z.enum(["CALL", "PUT"]).optional(),
     contractMultiplier: z.coerce.number().positive().default(100).optional(),
+    maturityDate: z.date().optional().nullable(),
   })
   .superRefine((data, ctx) => {
     // Options build their symbol at submit time; stocks/bonds require it upfront
@@ -124,6 +125,13 @@ export const buyFormSchema = z
           path: ["optionType"],
         });
       }
+    }
+    if (data.assetType === "wmp" && !data.maturityDate) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Maturity date is required.",
+        path: ["maturityDate"],
+      });
     }
   });
 
@@ -186,6 +194,7 @@ export function BuyForm({
       expirationDate: undefined,
       optionType: "CALL",
       contractMultiplier: 100,
+      maturityDate: null,
       ...defaultValues,
       currency: defaultValues?.currency?.trim() || initialCurrency,
     },
@@ -207,6 +216,7 @@ export function BuyForm({
   const assetType = watch("assetType") ?? "stock";
   const isManualAsset = quoteMode === QuoteMode.MANUAL;
   const isOption = assetType === "option";
+  const isWmp = assetType === "wmp";
 
   // Option total premium calculation
   const optQuantity = watch("quantity");
@@ -230,6 +240,9 @@ export function BuyForm({
     } else if (value === "bond") {
       setValue("quoteMode", QuoteMode.MARKET);
       setValue("assetKind", "BOND");
+    } else if (value === "wmp") {
+      setValue("quoteMode", QuoteMode.MARKET);
+      setValue("assetKind", "WMP");
     } else {
       setValue("quoteMode", QuoteMode.MARKET);
       setValue("assetKind", undefined);
@@ -240,9 +253,10 @@ export function BuyForm({
     setValue("symbolQuoteCcy", undefined);
     setValue("symbolInstrumentType", undefined);
     setValue("assetMetadata", undefined);
+    setValue("maturityDate", null);
   };
 
-  const quantityLabel = isOption ? "Contracts" : assetType === "bond" ? "Bonds" : "Quantity";
+  const quantityLabel = isOption ? "Contracts" : isWmp ? "Units" : assetType === "bond" ? "Bonds" : "Quantity";
   const priceLabel = isOption ? "Premium/Share" : "Price";
   // Get account currency from selected account
   const selectedAccount = useMemo(
@@ -287,6 +301,9 @@ export function BuyForm({
     // For bonds: set instrument type
     if (data.assetType === "bond") {
       data.symbolInstrumentType = data.symbolInstrumentType ?? "BOND";
+    }
+    if (data.assetType === "wmp") {
+      data.symbolInstrumentType = data.symbolInstrumentType ?? "WMP";
     }
     await onSubmit(data);
   });
@@ -343,6 +360,10 @@ export function BuyForm({
                 <input type="hidden" {...form.register("symbolInstrumentType")} />
                 <input type="hidden" {...form.register("existingAssetId")} />
               </>
+            )}
+
+            {isWmp && (
+              <DatePicker name="maturityDate" label="Maturity Date" enableTime={false} />
             )}
 
             {/* Quantity, Price, Fee Row */}

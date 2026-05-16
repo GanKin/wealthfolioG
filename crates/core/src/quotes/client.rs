@@ -644,6 +644,7 @@ impl MarketDataClient {
     ) -> String {
         match instrument_type {
             Some(InstrumentType::Metal) => "COMMODITY".to_string(),
+            Some(InstrumentType::Wmp) => "WMP".to_string(),
             Some(InstrumentType::Equity)
                 if provider_quote_type.eq_ignore_ascii_case("COMMODITY") =>
             {

@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { motion } from "motion/react";
 import { useId } from "react";
 
-export type AssetType = "stock" | "option" | "bond";
+export type AssetType = "stock" | "option" | "bond" | "wmp";
 
 interface AssetTypeOption {
   value: AssetType;
@@ -16,6 +16,7 @@ const assetTypes: AssetTypeOption[] = [
   { value: "stock", label: "Stock", icon: "TrendingUp" },
   { value: "option", label: "Option", icon: "BarChart" },
   { value: "bond", label: "Bond", icon: "FileText" },
+  { value: "wmp", label: "WMP", icon: "ReceiptText" },
 ];
 
 interface AssetTypeSelectorProps<TFieldValues extends FieldValues = FieldValues> {
@@ -48,7 +49,7 @@ export function AssetTypeSelector<TFieldValues extends FieldValues = FieldValues
   };
 
   return (
-    <div className={cn("bg-muted relative flex items-center gap-1 rounded-lg p-1", className)}>
+    <div className={cn("bg-muted relative grid grid-cols-2 gap-1 rounded-lg p-1 sm:grid-cols-4", className)}>
       {assetTypes.map((type) => {
         const Icon = Icons[type.icon];
         const isSelected = field.value === type.value;

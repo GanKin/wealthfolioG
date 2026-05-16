@@ -123,7 +123,7 @@ export const HoldingsInsightsPage = ({ accountId: accountIdProp }: HoldingsInsig
         description="Get started by adding your first transaction or quickly import your existing holdings from a CSV file."
       >
         <div className="flex flex-col items-center gap-3 sm:flex-row">
-          <Button size="default" onClick={() => navigate("/activities/manage")}>
+          <Button size="default" onClick={() => navigate("/activities/manage?redirect-to=/activities")}>
             <Icons.Plus className="mr-2 h-4 w-4" />
             Add Transaction
           </Button>

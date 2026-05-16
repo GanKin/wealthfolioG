@@ -20,6 +20,7 @@ import { formatAmount, Separator } from "@wealthfolio/ui";
 import { Link } from "react-router-dom";
 import { ActivityOperations } from "../activity-operations";
 import { ActivityTypeBadge } from "../activity-type-badge";
+import { formatDepositTermRange, getDepositTermDetails } from "../../utils/deposit-utils";
 
 interface ActivityTableMobileProps {
   activities: ActivityDetails[];
@@ -38,6 +39,46 @@ export const ActivityTableMobile = ({
 }: ActivityTableMobileProps) => {
   const { settings } = useSettingsContext();
   const appTimezone = settings?.timezone?.trim() || undefined;
+
+  const getTradeInstrumentType = (activity: ActivityDetails) => {
+    const metadata = activity.metadata;
+    if (metadata && typeof metadata === "object") {
+      const tradeInstrumentType = (metadata as Record<string, unknown>).tradeInstrumentType;
+      if (typeof tradeInstrumentType === "string" && tradeInstrumentType.trim()) {
+        return tradeInstrumentType.trim().toUpperCase();
+      }
+    }
+
+    return activity.instrumentType?.trim().toUpperCase();
+  };
+
+  const getTradeInstrumentTypeLabel = (instrumentType?: string | null) => {
+    switch (instrumentType?.trim().toUpperCase()) {
+      case "OPTION":
+        return "Option";
+      case "BOND":
+        return "Bond";
+      case "WMP":
+        return "WMP";
+      case "CRYPTO":
+        return "Crypto";
+      case "FX":
+        return "FX";
+      case "METAL":
+        return "Metal";
+      case "EQUITY":
+      case "STOCK":
+      case "ETF":
+      case "MUTUALFUND":
+      case "MUTUAL_FUND":
+      case "INDEX":
+      case "FUTURE":
+      case "FUTURES":
+        return "Stock";
+      default:
+        return undefined;
+    }
+  };
 
   if (activities.length === 0) {
     return (
@@ -70,11 +111,31 @@ export const ActivityTableMobile = ({
         const parsedOption = isOptionActivity ? parseOccSymbol(symbol) : null;
         const displaySymbol = isCash ? "Cash" : parsedOption ? parsedOption.underlying : symbol;
         const avatarSymbol = isCash ? "$CASH" : symbol;
+        const depositTermRange = formatDepositTermRange(getDepositTermDetails(activity));
+        const tradeTypeLabel =
+          activity.activityType === ActivityType.BUY || activity.activityType === ActivityType.SELL
+            ? getTradeInstrumentTypeLabel(getTradeInstrumentType(activity))
+            : undefined;
         const optionSubtitle = parsedOption
           ? `${new Date(parsedOption.expiration + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })} $${parsedOption.strikePrice} ${parsedOption.optionType}`
           : null;
         const formattedDate = formatDateTime(activity.date, appTimezone);
         const displayValue = calculateActivityValue(activity);
+        const showQuantity =
+          activity.activityType === ActivityType.DEPOSIT ||
+          (!isCash &&
+            !(isIncomeActivity(activity.activityType) && !isAssetBackedIncome) &&
+            !isSplitActivity(activity.activityType) &&
+            !isFeeActivity(activity.activityType) &&
+            Boolean(activity.quantity));
+        const quantityLabel =
+          activity.activityType === ActivityType.DEPOSIT
+            ? "units"
+            : isOptionActivity
+              ? "contracts"
+              : "shares";
+        const quantityValue =
+          activity.activityType === ActivityType.DEPOSIT ? "1" : activity.quantity;
 
         // Compact View
         if (isCompactView) {
@@ -96,24 +157,25 @@ export const ActivityTableMobile = ({
                           )}
                         </div>
                         <p className="text-muted-foreground text-xs">
-                          {optionSubtitle
-                            ? `${activityTypeLabel} · ${optionSubtitle}`
-                            : activityTypeLabel}
+                          {tradeTypeLabel
+                            ? `${activityTypeLabel} · ${tradeTypeLabel}`
+                            : optionSubtitle
+                              ? `${activityTypeLabel} · ${optionSubtitle}`
+                              : activityTypeLabel}
                         </p>
+                        {depositTermRange && (
+                          <p className="text-muted-foreground text-xs">{depositTermRange}</p>
+                        )}
                         <div className="text-muted-foreground mt-0.5 flex items-center gap-1.5 text-xs">
                           <span>{formattedDate.date}</span>
-                          {!isCash &&
-                            !(isIncomeActivity(activity.activityType) && !isAssetBackedIncome) &&
-                            !isSplitActivity(activity.activityType) &&
-                            !isFeeActivity(activity.activityType) &&
-                            activity.quantity && (
-                              <>
-                                <span>•</span>
-                                <span>
-                                  {activity.quantity} {isOptionActivity ? "contracts" : "shares"}
-                                </span>
-                              </>
-                            )}
+                          {showQuantity && (
+                            <>
+                              <span>•</span>
+                              <span>
+                                {quantityValue} {quantityLabel}
+                              </span>
+                            </>
+                          )}
                         </div>
                       </div>
                     </>
@@ -192,14 +254,25 @@ export const ActivityTableMobile = ({
 
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Type</span>
-                  <ActivityTypeBadge
-                    type={activity.activityType}
-                    subtype={activity.subtype}
-                    className="text-xs font-normal"
-                  />
+                  <div className="flex flex-col items-end">
+                    <ActivityTypeBadge
+                      type={activity.activityType}
+                      subtype={tradeTypeLabel ?? activity.subtype}
+                      className="text-xs font-normal"
+                    />
+                    {depositTermRange && (
+                      <span className="text-muted-foreground mt-1 text-xs">{depositTermRange}</span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Quantity (if applicable) */}
+                {activity.activityType === ActivityType.DEPOSIT && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Quantity</span>
+                    <span className="font-medium">1</span>
+                  </div>
+                )}
                 {!isCash &&
                   !(isIncomeActivity(activity.activityType) && !isAssetBackedIncome) &&
                   !isSplitActivity(activity.activityType) &&

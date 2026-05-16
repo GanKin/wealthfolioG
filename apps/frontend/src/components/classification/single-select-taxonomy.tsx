@@ -21,11 +21,12 @@ import type { TaxonomyCategory } from "@/lib/types";
 const MAX_RADIO_ITEMS = 8;
 
 // Top instrument types to show as quick toggles (by category ID)
-const TOP_INSTRUMENT_TYPES = [
+export const TOP_INSTRUMENT_TYPES = [
   "EQUITY_SECURITY", // Stocks
   "ETP", // ETFs
   "FUND", // Funds
   "DEBT_SECURITY", // Bonds
+  "WMP", // Wealth management products
   "OTHER", // Other
 ];
 

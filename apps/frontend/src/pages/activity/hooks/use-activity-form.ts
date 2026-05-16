@@ -171,6 +171,7 @@ export function useActivityForm({
             await saveActivitiesMutation.mutateAsync({
               creates: [transferOutActivity, transferInActivity],
             });
+            toast.success(isEditing ? "Transfer updated" : "Transfer added");
             return;
           }
 
@@ -196,8 +197,10 @@ export function useActivityForm({
               currentAssetId: activity.assetId,
               ...submitData,
             } as NewActivityFormValues & { id: string; currentAssetId?: string });
+            toast.success(selectedType === "TRANSFER" ? "Transfer updated" : "Activity updated");
           } else {
             await addActivityMutation.mutateAsync(submitData);
+            toast.success(selectedType === "TRANSFER" ? "Transfer added" : "Activity added");
           }
           return;
         }
@@ -224,8 +227,10 @@ export function useActivityForm({
             currentAssetId: activity.assetId,
             ...submitData,
           } as NewActivityFormValues & { id: string; currentAssetId?: string });
+          toast.success(selectedType === "TRANSFER" ? "Transfer updated" : "Activity updated");
         } else {
           await addActivityMutation.mutateAsync(submitData);
+          toast.success(selectedType === "TRANSFER" ? "Transfer added" : "Activity added");
         }
       } catch (err) {
         const message = extractErrorMessage(err);
@@ -238,6 +243,7 @@ export function useActivityForm({
       accounts,
       isEditing,
       activity?.id,
+      activity?.assetId,
       selectedType,
       addActivityMutation,
       updateActivityMutation,
